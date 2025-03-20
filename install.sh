@@ -10,7 +10,7 @@ if ! command -v wget >/dev/null 2>&1; then
     exit 1
 fi
 
-mkdir "${INSTALL_DIR}"
+mkdir -p "${INSTALL_DIR}"
 curl -s -o "${INSTALL_DIR}/${SCRIPT_NAME}" "${ANSIBLE_RUNNER_SCRIPT_URL}"
 chmod u+x "${INSTALL_DIR}/${SCRIPT_NAME}"
 
