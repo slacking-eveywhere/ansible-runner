@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+
+# run.sh build --version
+
+# run.sh play .... 
+
+DEFAULT_VERSION=2.18.2
+
+function show_help() {
+    echo "Usage: $0 <command> [options]"
+    echo ""
+    echo "Commands:"
+    echo "  build        Create an Ansible image with a specified version"
+    echo "             Usage: $0 build -iv (image version) <version>"
+    echo ""
+    echo "  play         Run ansible-playbook with additional user-provided arguments"
+    echo "             Usage: $0 play -iv (image version) [ansible-playbook options]"
+    echo ""
+    echo "Options:"
+    echo "  --help       Show this help message"
+    exit 0
+}
+
+if [[ $# -lt 1 ]]; then
+    echo "Error: No command provided. Use --help for usage details."
+    exit 1
+fi
+
+
+COMMAND=$1
+shift
+
+case "$COMMAND" in
+    build)
+        VERSION=""
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -iv)
+                    VERSION=$2
+                    shift 2
+                    ;;
+                --help)
+                    show_help
+                    ;;
+                *)
+                    echo "Unknown option: $1"
+                    exit 1
+                    ;;
+            esac
+        done
+        if [[ -z "$VERSION" ]]; then
+            echo "Using default version : $DEFAULT_VERSION."
+            VERSION=$DEFAULT_VERSION
+        fi
+
+        DOCKERFILE_CONTENT="""
+        FROM willhallonline/ansible:${VERSION}-bookworm-slim
+
+        RUN set -e ; \
+            adduser --home /home/user --shell /bin/bash --disabled-password user ; \
+            mkdir /playbooks ; \
+            chown user:user /playbooks ; \
+            echo '''\
+            \n\
+            Host *\n\
+            StrictHostKeyChecking no\n\
+            UserKnownHostsFile=/dev/null\n\
+            ''' >> /etc/ssh/ssh_config ; 
+
+        VOLUME [ "/playbooks" ]
+
+        WORKDIR /playbooks
+
+        USER user
+        """
+
+        echo "Building Ansible image with version: $VERSION"
+
+        echo "$DOCKERFILE_CONTENT" | docker build -t ansible-local:$VERSION -
+        ;;
+    play)
+        VERSION=""
+        PLAYBOOK_ARGS=()
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -iv)
+                    VERSION=$2
+                    shift 2
+                    ;;
+                --help)
+                    show_help
+                    ;;
+                *)
+                    PLAYBOOK_ARGS+=("$1")
+                    shift
+                    ;;
+            esac
+        done
+
+        if [[ -z "$VERSION" ]]; then
+            VERSION=${DEFAULT_VERSION}
+        fi
+        
+        echo "Running ansible with version: $VERSION"
+        echo "Running ansible-playbook with arguments: ${PLAYBOOK_ARGS[@]}"
+        
+        docker run \
+            -it \
+            --rm \
+            --name ansible \
+            -e SSH_AUTH_SOCK=${SSH_AUTH_SOCK} \
+            -v ${PWD}:/playbooks \
+            -v /home/${USER}/.ssh:/home/user/.ssh \
+            ansible-local:${VERSION} ansible-playbook "${PLAYBOOK_ARGS[@]}"
+        ;;
+    --help)
+        show_help
+        ;;
+    *)
+        echo "Error: Unknown command '$COMMAND'. Use --help for usage details."
+        exit 1
+        ;;
+ esac
+
+
+
+
+
+
+#-i inventory.ini hello.yml
+
+
+
